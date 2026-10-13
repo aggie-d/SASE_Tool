@@ -1,0 +1,5 @@
+pandas
+openpyxl
+matplotlib
+# Optional: needed for the regressions (return_model, meeting_model); they are skipped without it
+statsmodels

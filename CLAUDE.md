@@ -9,8 +9,8 @@ Python script that cleans the SASE (UConn chapter) Microsoft Forms attendance ex
   - `people`: one row per unique person: profile (from their most complete form), `meetings_attended`, `meeting_dates`, `returned`, `incentive_eligible`, `is_eboard`, `heard_list`
   - `meetings`: one row per meeting: `attendees`, `new`, `returning`, `eboard`, `non_eboard`, plus any `MEETING_INFO` fields
   - `raw`: original rows plus the cleaned columns
-- Run it with `python sase_analysis.py <file>.xlsx [--out output]`. It writes 2 PNG charts and `sase_report.xlsx` to `output/`.
-- Requires pandas, openpyxl, matplotlib, and optionally statsmodels (the regressions are skipped without it).
+- Run it with `python sase_analysis.py [--out output]`. The dataset is not a command-line argument: it is the `DATA_FILE` constant at the top of the script (.xlsx or .csv), edited by hand. It writes 2 PNG charts, `sase_report.xlsx`, and `sase_summary.txt` (the cleaning report, meeting counts, incentives, retention, channels, model results and suggestions) to `output/`; nothing but a one-line "saved" message prints to the terminal.
+- Requires pandas, openpyxl, matplotlib, and optionally statsmodels (the regressions are skipped without it). All are listed in `requirements.txt`: `pip install -r requirements.txt`.
 
 ## User preferences
 

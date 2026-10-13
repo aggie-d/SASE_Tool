@@ -3,12 +3,14 @@ SASE attendance analysis.
 
 Usage
 -----
-    python sase_analysis.py SASE_Fall_2026_Member_Attendance.xlsx [--out output]
+    python sase_analysis.py [--out output]
+
+The dataset is read from DATA_FILE (set at the top of this script).
 
 Or reuse the cleaned data anywhere:
 
     from sase_analysis import load_clean
-    data = load_clean("SASE_Fall_2026_Member_Attendance.xlsx")
+    data = load_clean(DATA_FILE)
     data.attendance   # one row per (person, meeting) -- duplicates removed
     data.people       # one row per unique person, with profile + attendance stats
     data.meetings     # one row per meeting, with counts
@@ -26,6 +28,10 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Optional settings -- edit here, no extra files needed.
 # ---------------------------------------------------------------------------
+
+# The attendance export to analyze (.xlsx or .csv). Change this by hand whenever
+# you switch to a new file; a relative path is resolved from where you run the script.
+DATA_FILE = "SASE Fall_2026 Member_Attendance.xlsx"
 
 # E-board members: emails or "first last" names (case-insensitive).
 EBOARD: set[str] = {
@@ -74,7 +80,16 @@ MEETING_TYPES: dict[int, str] = {
 #   MEETING_TYPE: a number defined in MEETING_TYPES above
 # Any extra numeric field you add also becomes a predictor.
 MEETING_INFO: dict[str, dict] = {
-    "2026-09-17": {"IS_FOOD": 1, "MEETING_TYPE": 1},
+    "2026-09-17": {"IS_FOOD": 0, "MEETING_TYPE": 1},    #Popsicle
+    "2026-09-24": {"IS_FOOD": 0, "MEETING_TYPE": 2},    #Career Fair
+    "2026-10-01": {"IS_FOOD": 1, "MEETING_TYPE": 1},    #ATLA Movie
+    "2026-10-08": {"IS_FOOD": 0, "MEETING_TYPE": 3},    #Medtronic
+    # "2026-10-15": {"IS_FOOD": 1, "MEETING_TYPE": 3},  #ASML
+    # "2026-10-22": {"IS_FOOD": 0, "MEETING_TYPE": 1},  #Pumpkin
+    # "2026-10-29": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Synchrony
+    # "2026-11-05": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Henkel
+    # "2026-11-12": {"IS_FOOD": 0, "MEETING_TYPE": 2},  #Engineer your career
+    # "2026-12-03": {"IS_FOOD": 1, "MEETING_TYPE": 1},  #Christmas Movie
 }
 
 INCENTIVE_THRESHOLD = 3  # meetings needed to qualify for incentives
@@ -195,7 +210,8 @@ def _is_eboard(row) -> bool:
 
 
 def load_clean(path: str | Path) -> CleanData:
-    raw = pd.read_excel(path)
+    path = Path(path)
+    raw = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_excel(path)
     raw.columns = [str(c).strip() for c in raw.columns]
 
     df = raw.copy()
@@ -310,6 +326,12 @@ def plot_attendance(data: CleanData, out: Path):
     ax.bar(x, m["new"], bottom=m["returning"], color="#a9d6e5", label="First-time")
     for i, total in zip(x, m["attendees"]):
         ax.text(i, total + 0.4, str(total), ha="center", fontsize=10)
+    # Segment counts, centred inside each bar (skipped when a segment is empty)
+    for i, ret, new in zip(x, m["returning"], m["new"]):
+        if ret:
+            ax.text(i, ret / 2, str(ret), ha="center", va="center", fontsize=9, color="white")
+        if new:
+            ax.text(i, ret + new / 2, str(new), ha="center", va="center", fontsize=9, color="#1b3a4b")
     ax.set_xticks(list(x), m["label"])
     ax.set_ylabel("Unique attendees")
     ax.set_title("Attendance per meeting")
@@ -322,8 +344,12 @@ def plot_attendance(data: CleanData, out: Path):
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.plot(m["label"], m["attendees"], marker="o", color="#adb5bd", label="All attendees")
     ax.plot(m["label"], m["non_eboard"], marker="o", color="#2a6f97", label="Excluding e-board")
+    # All-attendee counts sit above their points, non-e-board counts below, so the
+    # labels don't collide when the two lines are close (or identical).
+    for lbl, v in zip(m["label"], m["attendees"]):
+        ax.annotate(str(v), (lbl, v), textcoords="offset points", xytext=(0, 7), ha="center", color="#6c757d")
     for lbl, v in zip(m["label"], m["non_eboard"]):
-        ax.annotate(str(v), (lbl, v), textcoords="offset points", xytext=(0, 7), ha="center")
+        ax.annotate(str(v), (lbl, v), textcoords="offset points", xytext=(0, -14), ha="center", color="#2a6f97")
     ax.set_ylim(bottom=0)
     ax.set_ylabel("Unique attendees")
     ax.set_title("Attendance with and without e-board")
@@ -433,41 +459,41 @@ def suggestions(data: CleanData) -> list[str]:
 
 def main():
     ap = argparse.ArgumentParser(description="SASE attendance analysis")
-    ap.add_argument("xlsx")
     ap.add_argument("--out", default="output")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    data = load_clean(args.xlsx)
-    print("=== Cleaning ===\n" + cleaning_report(data))
+    data = load_clean(DATA_FILE)
 
-    print("\n=== Meetings ===")
-    print(data.meetings[["label", "attendees", "new", "returning", "eboard", "non_eboard"]].to_string(index=False))
+    # Everything that used to print to the terminal is collected here and written
+    # to output/sase_summary.txt instead.
+    summary: list[str] = []
+
+    def section(title: str, body):
+        summary.append(f"=== {title} ===\n{body}\n")
+
+    section("Cleaning", cleaning_report(data))
+    section("Meetings", data.meetings[["label", "attendees", "new", "returning", "eboard", "non_eboard"]]
+            .to_string(index=False))
 
     plot_attendance(data, out)
 
-    print(f"\n=== Incentives (>= {INCENTIVE_THRESHOLD} meetings) ===")
-    print(data.people.loc[data.people["incentive_eligible"], ["name", "meetings_attended", "meeting_dates"]]
-          .to_string(index=False))
+    section(f"Incentives (>= {INCENTIVE_THRESHOLD} meetings)",
+            data.people.loc[data.people["incentive_eligible"], ["name", "meetings_attended", "meeting_dates"]]
+            .to_string(index=False))
+    section("Retention by first meeting (non-e-board)", retention(data).to_string(index=False))
+    section("Recruitment channels", recruitment_channels(data).to_string(index=False))
 
-    print("\n=== Retention by first meeting (non-e-board) ===")
-    print(retention(data).to_string(index=False))
-
-    print("\n=== Recruitment channels ===")
-    print(recruitment_channels(data).to_string(index=False))
-
-    print("\n=== Return model (exploratory) ===")
     rm = return_model(data)
-    print(rm.summary2().tables[1].round(3) if hasattr(rm, "summary2") else rm)
+    section("Return model (exploratory)", rm.summary2().tables[1].round(3) if hasattr(rm, "summary2") else rm)
 
-    print("\n=== Meeting model ===")
     mm = meeting_model(data)
-    print(mm.summary() if hasattr(mm, "summary") else mm)
+    section("Meeting model", mm.summary() if hasattr(mm, "summary") else mm)
 
-    print("\n=== Suggestions ===")
-    for s in suggestions(data):
-        print(" -", s)
+    section("Suggestions", "\n".join(f" - {s}" for s in suggestions(data)))
+
+    (out / "sase_summary.txt").write_text("\n".join(summary), encoding="utf-8")
 
     attendees_cols = ["name", "email", "all_emails", "meetings_attended", "meeting_dates",
                       "incentive_eligible", "is_eboard", "standing", "hoodie", "shirt"]
@@ -480,7 +506,7 @@ def main():
         merch_sizes(data).to_excel(xw, sheet_name="Merch sizes")
         for name, s in demographics(data).items():
             s.to_frame("count").to_excel(xw, sheet_name=f"Demo - {name}"[:31])
-    print(f"\nSaved charts and sase_report.xlsx to {out.resolve()}")
+    print(f"Saved charts, sase_summary.txt and sase_report.xlsx to {out.resolve()}")
 
 
 if __name__ == "__main__":
