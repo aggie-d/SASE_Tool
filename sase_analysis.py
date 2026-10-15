@@ -360,6 +360,54 @@ def plot_attendance(data: CleanData, out: Path):
     plt.close(fig)
 
 
+def _plot_avg_attendance_by(data: CleanData, column: str, group_labels: dict, title: str,
+                            filename: str, out: Path) -> str | None:
+    """Bar chart of mean attendance per group of meetings (grouped by a MEETING_INFO
+    column). Returns None, with a reason, when the column isn't in MEETING_INFO yet."""
+    import matplotlib.pyplot as plt
+    m = data.meetings
+    if column not in m.columns or m[column].isna().all():
+        return f"Skipped {filename}: no {column} values in MEETING_INFO yet."
+    m = m.dropna(subset=[column])
+    g = m.groupby(column).agg(n=("meeting", "size"), everyone=("attendees", "mean"),
+                              non_eboard=("non_eboard", "mean")).sort_index()
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    x = range(len(g))
+    w = 0.38
+    bars = [(-w / 2, g["everyone"], "#adb5bd", "All attendees"),
+            (w / 2, g["non_eboard"], "#2a6f97", "Excluding e-board")]
+    for offset, vals, color, label in bars:
+        ax.bar([i + offset for i in x], vals, width=w, color=color, label=label)
+        for i, v in zip(x, vals):
+            ax.text(i + offset, v + 0.3, f"{v:.1f}", ha="center", fontsize=9)
+    ax.set_xticks(list(x), [f"{group_labels.get(int(k), int(k))}\n({n} meeting{'s' if n != 1 else ''})"
+                            for k, n in zip(g.index, g["n"])])
+    ax.set_ylim(0, g[["everyone", "non_eboard"]].to_numpy().max() * 1.3)  # headroom for the legend
+    ax.set_ylabel("Average unique attendees")
+    ax.set_title(title)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(loc="upper right", frameon=False)
+    fig.tight_layout()
+    fig.savefig(out / filename, dpi=150)
+    plt.close(fig)
+    return None
+
+
+def plot_attendance_by_food(data: CleanData, out: Path) -> str | None:
+    """Average attendance at meetings with food vs. without (IS_FOOD in MEETING_INFO)."""
+    return _plot_avg_attendance_by(data, "IS_FOOD", {1: "Food", 0: "No food"},
+                                   "Average attendance: food vs. no food",
+                                   "attendance_by_food.png", out)
+
+
+def plot_attendance_by_meeting_type(data: CleanData, out: Path) -> str | None:
+    """Average attendance per meeting type (MEETING_TYPE / MEETING_TYPES)."""
+    return _plot_avg_attendance_by(data, "MEETING_TYPE", MEETING_TYPES,
+                                   "Average attendance by meeting type",
+                                   "attendance_by_meeting_type.png", out)
+
+
 def retention(data: CleanData) -> pd.DataFrame:
     """Of the first-timers at each meeting, how many came back at least once."""
     p = data.people[~data.people["is_eboard"]]
@@ -379,6 +427,13 @@ def recruitment_channels(data: CleanData) -> pd.DataFrame:
                    return_rate=("returned", "mean"))
               .round(2).sort_values("people", ascending=False).reset_index()
               .rename(columns={"heard_list": "channel"}))
+
+
+def member_attendance_table(data: CleanData) -> pd.DataFrame:
+    """One row per member: name, email, meetings attended, incentive eligibility.
+    Most meetings first; ties are broken alphabetically by name."""
+    t = data.people[["name", "email", "meetings_attended", "incentive_eligible"]]
+    return t.sort_values(["meetings_attended", "name"], ascending=[False, True]).reset_index(drop=True)
 
 
 def demographics(data: CleanData) -> dict[str, pd.Series]:
@@ -478,6 +533,10 @@ def main():
             .to_string(index=False))
 
     plot_attendance(data, out)
+    skipped = [msg for msg in (plot_attendance_by_food(data, out),
+                               plot_attendance_by_meeting_type(data, out)) if msg]
+    if skipped:
+        section("Charts skipped", "\n".join(skipped))
 
     section(f"Incentives (>= {INCENTIVE_THRESHOLD} meetings)",
             data.people.loc[data.people["incentive_eligible"], ["name", "meetings_attended", "meeting_dates"]]
@@ -494,6 +553,8 @@ def main():
     section("Suggestions", "\n".join(f" - {s}" for s in suggestions(data)))
 
     (out / "sase_summary.txt").write_text("\n".join(summary), encoding="utf-8")
+    # utf-8-sig so Excel opens names with accents correctly
+    member_attendance_table(data).to_csv(out / "member_attendance.csv", index=False, encoding="utf-8-sig")
 
     attendees_cols = ["name", "email", "all_emails", "meetings_attended", "meeting_dates",
                       "incentive_eligible", "is_eboard", "standing", "hoodie", "shirt"]
@@ -506,7 +567,7 @@ def main():
         merch_sizes(data).to_excel(xw, sheet_name="Merch sizes")
         for name, s in demographics(data).items():
             s.to_frame("count").to_excel(xw, sheet_name=f"Demo - {name}"[:31])
-    print(f"Saved charts, sase_summary.txt and sase_report.xlsx to {out.resolve()}")
+    print(f"Saved charts, sase_summary.txt, member_attendance.csv and sase_report.xlsx to {out.resolve()}")
 
 
 if __name__ == "__main__":
