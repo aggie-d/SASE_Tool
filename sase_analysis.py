@@ -59,7 +59,7 @@ MEETINGS: dict[str, str] = {
     "2026-09-24": "Career Fair Simulation",
     "2026-10-01": "ATLA Movie Night",
     "2026-10-08": "Medtronic Company Visit",
-    # "2026-10-15": "ASML Company Visit",
+    "2026-10-15": "ASML Company Visit",
     # "2026-10-22": "Pumpkin Painting",
     # "2026-10-29": "Synchrony Company Visit",
     # "2026-11-05": "Henkel Company Visit",
@@ -84,7 +84,7 @@ MEETING_INFO: dict[str, dict] = {
     "2026-09-24": {"IS_FOOD": 0, "MEETING_TYPE": 2},    #Career Fair
     "2026-10-01": {"IS_FOOD": 1, "MEETING_TYPE": 1},    #ATLA Movie
     "2026-10-08": {"IS_FOOD": 0, "MEETING_TYPE": 3},    #Medtronic
-    # "2026-10-15": {"IS_FOOD": 1, "MEETING_TYPE": 3},  #ASML
+    "2026-10-15": {"IS_FOOD": 1, "MEETING_TYPE": 3},  #ASML
     # "2026-10-22": {"IS_FOOD": 0, "MEETING_TYPE": 1},  #Pumpkin
     # "2026-10-29": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Synchrony
     # "2026-11-05": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Henkel
@@ -316,12 +316,21 @@ def cleaning_report(data: CleanData) -> str:
 # Analyses (each takes CleanData; add your own the same way)
 # ---------------------------------------------------------------------------
 
+def _meeting_axis(n_meetings: int, labels) -> tuple[tuple[float, float], list[str]]:
+    """Figure size and x tick labels that keep meeting names from overlapping:
+    names are wrapped onto several lines and the figure widens with each meeting."""
+    import textwrap
+    width = max(8.0, 1.7 * n_meetings)
+    return (width, 4.5), [textwrap.fill(str(s), 14) for s in labels]
+
+
 def plot_attendance(data: CleanData, out: Path):
     import matplotlib.pyplot as plt
     m = data.meetings
-    x = range(len(m))
+    x = list(range(len(m)))
+    figsize, tick_labels = _meeting_axis(len(m), m["label"])
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    fig, ax = plt.subplots(figsize=figsize)
     ax.bar(x, m["returning"], color="#2a6f97", label="Returning")
     ax.bar(x, m["new"], bottom=m["returning"], color="#a9d6e5", label="First-time")
     for i, total in zip(x, m["attendees"]):
@@ -332,7 +341,7 @@ def plot_attendance(data: CleanData, out: Path):
             ax.text(i, ret / 2, str(ret), ha="center", va="center", fontsize=9, color="white")
         if new:
             ax.text(i, ret + new / 2, str(new), ha="center", va="center", fontsize=9, color="#1b3a4b")
-    ax.set_xticks(list(x), m["label"])
+    ax.set_xticks(x, tick_labels)
     ax.set_ylabel("Unique attendees")
     ax.set_title("Attendance per meeting")
     ax.spines[["top", "right"]].set_visible(False)
@@ -341,15 +350,16 @@ def plot_attendance(data: CleanData, out: Path):
     fig.savefig(out / "attendance_per_meeting.png", dpi=150)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.plot(m["label"], m["attendees"], marker="o", color="#adb5bd", label="All attendees")
-    ax.plot(m["label"], m["non_eboard"], marker="o", color="#2a6f97", label="Excluding e-board")
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.plot(x, m["attendees"], marker="o", color="#adb5bd", label="All attendees")
+    ax.plot(x, m["non_eboard"], marker="o", color="#2a6f97", label="Excluding e-board")
     # All-attendee counts sit above their points, non-e-board counts below, so the
     # labels don't collide when the two lines are close (or identical).
-    for lbl, v in zip(m["label"], m["attendees"]):
-        ax.annotate(str(v), (lbl, v), textcoords="offset points", xytext=(0, 7), ha="center", color="#6c757d")
-    for lbl, v in zip(m["label"], m["non_eboard"]):
-        ax.annotate(str(v), (lbl, v), textcoords="offset points", xytext=(0, -14), ha="center", color="#2a6f97")
+    for i, v in zip(x, m["attendees"]):
+        ax.annotate(str(v), (i, v), textcoords="offset points", xytext=(0, 7), ha="center", color="#6c757d")
+    for i, v in zip(x, m["non_eboard"]):
+        ax.annotate(str(v), (i, v), textcoords="offset points", xytext=(0, -14), ha="center", color="#2a6f97")
+    ax.set_xticks(x, tick_labels)
     ax.set_ylim(bottom=0)
     ax.set_ylabel("Unique attendees")
     ax.set_title("Attendance with and without e-board")
