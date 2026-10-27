@@ -60,7 +60,7 @@ MEETINGS: dict[str, str] = {
     "2026-10-01": "ATLA Movie Night",
     "2026-10-08": "Medtronic Company Visit",
     "2026-10-15": "ASML Company Visit",
-    # "2026-10-22": "Pumpkin Painting",
+    "2026-10-22": "Pumpkin Painting",
     # "2026-10-29": "Synchrony Company Visit",
     # "2026-11-05": "Henkel Company Visit",
     # "2026-11-12": "Engineer Your Career",
@@ -85,14 +85,14 @@ MEETING_INFO: dict[str, dict] = {
     "2026-10-01": {"IS_FOOD": 1, "MEETING_TYPE": 1},    #ATLA Movie
     "2026-10-08": {"IS_FOOD": 0, "MEETING_TYPE": 3},    #Medtronic
     "2026-10-15": {"IS_FOOD": 1, "MEETING_TYPE": 3},  #ASML
-    # "2026-10-22": {"IS_FOOD": 0, "MEETING_TYPE": 1},  #Pumpkin
+    "2026-10-22": {"IS_FOOD": 1, "MEETING_TYPE": 1},  #Pumpkin
     # "2026-10-29": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Synchrony
     # "2026-11-05": {"IS_FOOD": 0, "MEETING_TYPE": 3},  #Henkel
     # "2026-11-12": {"IS_FOOD": 0, "MEETING_TYPE": 2},  #Engineer your career
     # "2026-12-03": {"IS_FOOD": 1, "MEETING_TYPE": 1},  #Christmas Movie
 }
 
-INCENTIVE_THRESHOLD = 3  # meetings needed to qualify for incentives
+INCENTIVE_THRESHOLD = 6  # meetings needed to qualify for incentives
 
 # Column names in the Microsoft Forms export
 COL = {
